@@ -63,7 +63,7 @@ RUN apt-get install -y \
     cmake 
 
 RUN apt-get update && apt-get install -y \
-    ros-indigo-navigation 
+    ros-indigo-navigation \
     ros-indigo-rqt \
     ros-indigo-rqt-common-plugins
 
