@@ -1,0 +1,44 @@
+#!/bin/sh
+# p1p1 = internal NIC
+# eth0 = WAN NIC
+lan_nic=p1p1
+wan_nic=eth0
+
+echo Configuration: [lan_nic = $lan_nic], [wan_nic = $wan_nic]
+
+echo "Clear old firewall rules..."
+iptables --flush
+iptables --flush FORWARD
+iptables --flush INPUT
+iptables --flush OUTPUT
+iptables --table nat --flush
+iptables --table nat --delete-chain
+iptables --table mangle --flush
+iptables --table mangle --delete-chain
+iptables --delete-chain
+
+echo "Drop all INPUT and FORWARD..."
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+
+echo "Drop all IPv6 traffic..."
+ip6tables -P INPUT DROP
+ip6tables -P OUTPUT DROP
+ip6tables -P FORWARD DROP
+
+echo "Accept everything on lo and $lan_nic (local network)..."
+iptables -A INPUT -i lo -p all -j ACCEPT
+iptables -A OUTPUT -o lo -p all -j ACCEPT
+iptables -A INPUT -i $lan_nic -p all -j ACCEPT -s 192.168.1.0/24
+iptables -A OUTPUT -o $lan_nic -p all -j ACCEPT -d 192.168.1.0/24
+
+echo "IP Forwarding and Routing for gateway use..."
+iptables -A FORWARD -o $wan_nic -i $lan_nic -s 192.168.1.0/24 -m conntrack --ctstate NEW -j ACCEPT
+iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -t nat -A POSTROUTING -o $wan_nic -j MASQUERADE
+
+echo "Maintain established connections..."
+iptables -A INPUT --in-interface $wan_nic --match conntrack --ctstate ESTABLISHED,RELATED --jump ACCEPT
+
+echo "Allow port 80 (http) connections to the firewall..."
+iptables -A INPUT -i $wan_nic -p tcp --dport 80 -m state --state NEW -j ACCEPT
